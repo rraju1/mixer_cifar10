@@ -1,0 +1,70 @@
+program: src/scripts/main.py
+method: grid
+metric:
+  goal: minimize
+  name: val_loss
+parameters:
+  batch-size:
+    values: [32]
+  eval-batch-size:
+    values: [32]
+  num-workers:
+    values: [4]
+  seed:
+    values: [3407]
+  epochs:
+    values: [300]
+  patch-size:
+    values: [16]
+  hidden-size:
+    values: [128]
+  hidden-c:
+    values: [512]
+  hidden-s:
+    values: [64]
+  num-layers:
+    values: [8]
+  drop-p:
+    values: [0.]
+  off-act:
+    values: [False]
+  is-cls-token:
+    values: [False]
+  lr:
+    values: [0.001]
+  min-lr:
+    values: [0.000001]
+  momentum:
+    values: [0.9]
+  optimizer:
+    values: ['adam']
+  scheduler:
+    values: ['cosine']
+  beta1:
+    values: [0.9]
+  beta2:
+    values: [0.99]
+  weight-decay:
+    values: [5e-5]
+  off-nesterov:
+    values: [False]
+  label-smoothing:
+    values: [False]
+  gamma:
+    values: [0.1]
+  warmup-epoch:
+    values: [5]
+  autoaugment:
+    values: [True]
+  clip-grad:
+    values: [0]
+  cutmix-beta:
+    values: [1.0]
+  cutmix-prob:
+    values: [0.5]
+  lambda_drop:
+    values: [0.1]
+  attn_maps_path:
+    values: ['src/utils/avg_attns_trainset.json']
+  split:
+    values: ['index']
