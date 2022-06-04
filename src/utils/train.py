@@ -42,6 +42,7 @@ class Trainer(object):
 
         self.epochs = args.epochs
         self.criterion = nn.CrossEntropyLoss(label_smoothing=args.label_smoothing)
+        # self.criterion = nn.BCEWithLogitsLoss()
 
         self.num_steps = 0
         self.epoch_loss, self.epoch_corr, self.epoch_acc = 0., 0., 0.
@@ -72,6 +73,7 @@ class Trainer(object):
             # compute output
             with torch.cuda.amp.autocast():
                 out = self.model(img)
+                out = self.model.head(out)
                 loss = self.criterion(out, label)
 
         self.scaler.scale(loss).backward()
@@ -95,6 +97,7 @@ class Trainer(object):
 
         with torch.no_grad():
             out = self.model(img)
+            out = self.model.head(out)
             loss = self.criterion(out, label)
 
         self.epoch_loss += loss * img.size(0)
