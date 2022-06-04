@@ -138,3 +138,10 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
+.vscode
+
+imgs/
+src/datasets/
+src/utils/avg_attns_testset.json
+src/utils/avg_attns_trainset.json
+src/vww_setup.ipynb
