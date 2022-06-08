@@ -65,7 +65,7 @@ parser.add_argument('--padding', type=int, default=4)
 parser.add_argument('--lambda_drop', type=float, default=0.1)
 parser.add_argument('--attn_maps_path', type=str, default='./utils/avg_attns_trainset.json')
 parser.add_argument('--attn_maps_test_path', type=str, default='./utils/avg_attns_testset.json')
-parser.add_argument('--split', type=str, default='index')
+parser.add_argument('--split', type=str, default='nindex')
 
 args = parser.parse_args()
 args.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
