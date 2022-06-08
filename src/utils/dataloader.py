@@ -6,7 +6,7 @@ from torchvision.datasets import VisionDataset
 from torchvision.datasets.folder import default_loader
 from PIL import Image
 from torch.utils.data import Dataset
-from utils.autoaugment import CIFAR10Policy, SVHNPolicy
+from utils.autoaugment import CIFAR10Policy, SVHNPolicy, ImageNetPolicy
 
 
 class IndexedDataset(Dataset):
@@ -43,8 +43,8 @@ def get_dataloaders(args):
         train_ds = torchvision.datasets.SVHN('./datasets', split='train', transform=train_transform, download=True)
         test_ds = torchvision.datasets.SVHN('./datasets', split='test', transform=test_transform, download=True)
     elif args.dataset == "vww":
-        train_ds = VisualWakeWordsDataset(args.root, split='train', transform=train_transform)
-        test_ds = VisualWakeWordsDataset(args.root, split='val', transform=test_transform)
+        train_ds = VisualWakeWordsDataset(args.root, split='train', transform=train_transform, idx=args.split=='index')
+        test_ds = VisualWakeWordsDataset(args.root, split='val', transform=test_transform, idx=args.split=='index')
     else:
         raise ValueError(f"No such dataset:{args.dataset}")
 
@@ -75,6 +75,8 @@ def get_transform(args):
             train_transform_list.append(CIFAR10Policy())
         elif args.dataset == 'svhn':
             train_transform_list.append(SVHNPolicy())
+        elif args.dataset == 'vww':
+            train_transform_list.append(ImageNetPolicy())
         else:
             print(f"No AutoAugment for {args.dataset}")   
         

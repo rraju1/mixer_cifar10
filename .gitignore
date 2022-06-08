@@ -8,6 +8,9 @@ sam.py
 *.pth
 epochs
 
+.ipynb_checkpoints
+*/.ipynb_checkpoints/*
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -142,6 +145,8 @@ dmypy.json
 
 imgs/
 src/datasets/
-src/utils/avg_attns_testset.json
-src/utils/avg_attns_trainset.json
+src/utils/avg_attns_cifar_testset.json
+src/utils/avg_attns_cifar_trainset.json
 src/vww_setup.ipynb
+src/utils/avg_attns_vww_trainset.json
+src/utils/avg_attns_vww_testset.json
