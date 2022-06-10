@@ -21,6 +21,8 @@ from functools import partial
 import torch
 import torch.nn as nn
 import torchsummary
+import numpy as np
+import json
 import warnings
 
 def trunc_normal_(tensor, mean=0., std=1., a=-2., b=2.):
@@ -272,6 +274,163 @@ class VisionTransformer(nn.Module):
         return output
 
 
+class MaskedViT(VisionTransformer):
+    def __init__(self, img_size=[224], patch_size=16, in_chans=3, num_classes=0, embed_dim=768, depth=12, 
+                 num_heads=12, mlp_ratio=4, qkv_bias=False, qk_scale=None, drop_rate=0, attn_drop_rate=0, 
+                 drop_path_rate=0, norm_layer=nn.LayerNorm, **kwargs):
+        super().__init__(img_size, patch_size, in_chans, num_classes, embed_dim, depth, num_heads, mlp_ratio, 
+                        qkv_bias, qk_scale, drop_rate, attn_drop_rate, drop_path_rate, norm_layer, **kwargs)
+        self.patch_size = patch_size
+        self.in_chans = in_chans
+        self.device = kwargs['device']
+        self.lambda_drop = kwargs['lambda_drop']
+        self.attn_maps_path = kwargs['attn_maps_path']
+        self.attn_maps_test_path = kwargs['attn_maps_test_path']
+        self.phase = kwargs['phase']
+        self.patchdroptest = kwargs['patchdroptest']
+        
+        with open(self.attn_maps_path) as json_file:
+            self.data = json.load(json_file)
+        with open(self.attn_maps_test_path) as json_file:
+            self.test_data = json.load(json_file)
+    
+    def forward(self, x, idx=None):
+        x_tokens = self.prepare_tokens(x)
+        if self.phase == 'train':
+            x = self.patchdrop(x_tokens, x, idx, self.data, self.lambda_drop)
+        elif self.phase == 'test' and self.patchdroptest:
+            x = self.patchdrop(x_tokens, x, idx, self.test_data, self.lambda_drop)
+        else:
+            x = x_tokens
+
+        for blk in self.blocks:
+            x = blk(x)
+        x = self.norm(x)
+        return x[:, 0]
+    
+    # gets called after prepare tokens and positional info is added
+    def patchdrop(self, x, img, idx, attn_dict, drop_lambda):
+        B, N, C = x.shape
+        new_N = int((1 - drop_lambda) * (N - 1)) # need to discard cls token in calculation
+        end_params = B * new_N * C
+        x_ncls = x[:,1:,:] + 1e-8 # extract all tokens exlcuding cls token, need to add 1e-8 to make sure pos emb is not zero
+        mask = self.project_bin_mask(img, idx, attn_dict, drop_lambda, self.patch_size, self.in_chans, self.embed_dim).to(self.device)
+        masked_x = x_ncls * mask
+        
+        masked_x = masked_x[masked_x != 0]
+        
+        # need to deal with the case where drop didnt work
+
+        if masked_x.shape[0] == end_params:
+            new_input = masked_x.reshape(B, new_N, C)
+        elif masked_x.shape[0] < end_params: # too many patches were dropped
+            padded_value = torch.zeros(end_params - masked_x.shape[0])
+            new_input = torch.cat([masked_x, padded_value]).reshape(B, new_N, C)
+        else: # too many patches were retained
+            new_input = masked_x[:end_params].reshape(B, new_N, C)
+
+        # print(new_input.shape)
+        assert new_input.shape == (B, new_N, C)
+        new_input = torch.cat([x[:,0,:].unsqueeze(1), new_input], dim=1)
+        # print(new_input.shape)
+        return new_input
+        
+    def project_bin_mask(self, image, index, data, lambda_drop, ps, in_chan, hidden):
+        A = torch.randn(hidden, in_chan * ps * ps)
+        unfold_fn = nn.Unfold(kernel_size=(ps, ps), stride=ps)
+        mask = self.get_mask_batch(image, index, data, lambda_drop)
+        patched = self.gen_mask(mask, unfold_fn)
+        output = torch.nn.functional.linear(patched, A, bias=None)
+        bin_output = self.create_binary_mask(output)
+        return bin_output
+    
+    """
+    Given tensor x, create a binary masks which preserves the positions of the zeros
+    """
+    def create_binary_mask(self, x):
+        zeros = torch.zeros_like(x)
+        return zeros.eq(x).bitwise_not_().float()
+
+    def gen_mask(self, masks, unfold_fn):
+        patched_tensor = unfold_fn(masks.repeat(1,3,1,1))
+        patched_tensor = patched_tensor.permute(0,2,1)
+        return patched_tensor
+
+    def get_mask_batch(self, image, idx, attn_dict, drop_lambda):
+        idx_np = idx.numpy()
+        w_featmap = int(np.sqrt(len(attn_dict[str(0)]))) # 14 0 is a random key
+        h_featmap = int(np.sqrt(len(attn_dict[str(0)]))) # 14
+        scale = image.shape[2] // w_featmap # to pass to interpolate
+        batch_size = len(idx)
+
+        batch_array = [] # collect attn maps
+        for i in range(batch_size):
+            batch_array.append(np.array(attn_dict[str(idx_np[i])]))
+        batch_tensor = torch.tensor(np.vstack(batch_array))
+
+        val, indices = torch.sort(batch_tensor, dim=1)
+        threshold = torch.quantile(val, drop_lambda, dim=1)
+        th_attn = val >= threshold[:,None]
+        idx2 = torch.argsort(indices, dim=1) # rearrange patch positions
+        for batch_idx in range(th_attn.shape[0]):
+            th_attn[batch_idx] = th_attn[batch_idx][idx2[batch_idx]]
+
+        th_attn = th_attn.float() # bool -> float
+        bin_mask = th_attn.reshape(-1, w_featmap, h_featmap)
+        mask = torch.nn.functional.interpolate(bin_mask.unsqueeze(1), scale_factor=scale, mode="nearest")
+        return mask
+
+    def get_last_selfattention(self, x, idx=None):
+        x_tokens = self.prepare_tokens(x)
+        if self.phase == 'train':
+            x = self.patchdrop(x_tokens, x, idx, self.data, self.lambda_drop)
+        elif self.phase == 'test' and self.patchdroptest:
+            x = self.patchdrop(x_tokens, x, idx, self.test_data, self.lambda_drop)
+        else:
+            x = x_tokens
+
+        for i, blk in enumerate(self.blocks):
+            if i < len(self.blocks) - 1:
+                x = blk(x)
+            else:
+                # return attention of the last block
+                return blk(x, return_attention=True)
+
+    def get_intermediate_layers(self, x, n=1, idx=None):
+        x_tokens = self.prepare_tokens(x)
+        if self.phase == 'train':
+            x = self.patchdrop(x_tokens, x, idx, self.data, self.lambda_drop)
+        elif self.phase == 'test' and self.patchdroptest:
+            x = self.patchdrop(x_tokens, x, idx, self.test_data, self.lambda_drop)
+        else:
+            x = x_tokens
+
+        # we return the output tokens from the `n` last blocks
+        output = []
+        for i, blk in enumerate(self.blocks):
+            x = blk(x)
+            if len(self.blocks) - i <= n:
+                output.append(self.norm(x))
+        return output
+
+    def set_patchdrop_test(self, use_idx_test):
+        self.patchdroptest = use_idx_test
+
+    def set_phase(self, new_phase):
+        self.phase = new_phase
+        
+    def set_lambda(self, lambda_drop):
+        self.lambda_drop = lambda_drop
+    
+    def get_lambda(self):
+        return self.lambda_drop
+    
+    def get_phase(self):
+        return self.phase
+    
+    def get_patchdrop_test(self):
+        return self.patchdroptest
+
 def vit_tiny(patch_size=16, **kwargs):
     model = VisionTransformer(
         patch_size=patch_size, embed_dim=192, depth=12, num_heads=3, mlp_ratio=4,
@@ -283,6 +442,10 @@ def vit_small(**kwargs):
     model = VisionTransformer(**kwargs)
     return model
 
+
+def vit_small_patchdrop(**kwargs):
+    model = MaskedViT(**kwargs)
+    return model
 
 def vit_base(patch_size=16, **kwargs):
     model = VisionTransformer(
