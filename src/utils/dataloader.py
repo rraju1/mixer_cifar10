@@ -6,7 +6,7 @@ from torchvision.datasets import VisionDataset
 from torchvision.datasets.folder import default_loader
 from PIL import Image
 from torch.utils.data import Dataset
-from utils.autoaugment import CIFAR10Policy, SVHNPolicy, ImageNetPolicy
+from utils.autoaugment import CIFAR10Policy, SVHNPolicy
 
 
 class IndexedDataset(Dataset):
@@ -65,7 +65,7 @@ def get_transform(args):
             args.mean, args.std = [0.485, 0.456, 0.406], [0.229, 0.224, 0.225] # just use imagenet mean,std
     else:
         args.mean, args.std = [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
-    train_transform_list = [#transforms.Resize(args.size)
+    train_transform_list = [transforms.Resize(args.size),
         transforms.RandomCrop(size=(args.size,args.size), padding=args.padding)
     
     ]
@@ -75,8 +75,6 @@ def get_transform(args):
             train_transform_list.append(CIFAR10Policy())
         elif args.dataset == 'svhn':
             train_transform_list.append(SVHNPolicy())
-        elif args.dataset == 'vww':
-            train_transform_list.append(ImageNetPolicy())
         else:
             print(f"No AutoAugment for {args.dataset}")   
         
