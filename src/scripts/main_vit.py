@@ -86,7 +86,7 @@ if args.cutmix_prob>0.:
     experiment_name += f'_cm'
 if args.is_cls_token:
     experiment_name += f"_cls"
-# experiment_name += f"_lambda{args.lambda_drop}"
+experiment_name += f"_img_size{args.size}_ps{args.patch_size}"
 
 
 if __name__=='__main__':
