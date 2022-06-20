@@ -293,6 +293,9 @@ class MaskedViT(VisionTransformer):
             self.data = json.load(json_file)
         with open(self.attn_maps_test_path) as json_file:
             self.test_data = json.load(json_file)
+
+        self.unfold_fn = nn.Unfold(kernel_size=(patch_size, patch_size), stride=patch_size)
+        self.A = torch.randn(embed_dim, in_chans * patch_size * patch_size).to(device=self.device)
     
     def forward(self, x, idx=None):
         x_tokens = self.prepare_tokens(x)
@@ -314,7 +317,7 @@ class MaskedViT(VisionTransformer):
         new_N = int((1 - drop_lambda) * (N - 1)) # need to discard cls token in calculation
         end_params = B * new_N * C
         x_ncls = x[:,1:,:] + 1e-8 # extract all tokens exlcuding cls token, need to add 1e-8 to make sure pos emb is not zero
-        mask = self.project_bin_mask(img, idx, attn_dict, drop_lambda, self.patch_size, self.in_chans, self.embed_dim).to(self.device)
+        mask = self.project_bin_mask(img, idx, attn_dict, drop_lambda, self.patch_size, self.in_chans, self.embed_dim)
         masked_x = x_ncls * mask
         
         masked_x = masked_x[masked_x != 0]
@@ -324,7 +327,7 @@ class MaskedViT(VisionTransformer):
         if masked_x.shape[0] == end_params:
             new_input = masked_x.reshape(B, new_N, C)
         elif masked_x.shape[0] < end_params: # too many patches were dropped
-            padded_value = torch.zeros(end_params - masked_x.shape[0])
+            padded_value = torch.zeros(end_params - masked_x.shape[0]).unsqueeze(0).to(self.device)
             new_input = torch.cat([masked_x, padded_value]).reshape(B, new_N, C)
         else: # too many patches were retained
             new_input = masked_x[:end_params].reshape(B, new_N, C)
@@ -336,11 +339,9 @@ class MaskedViT(VisionTransformer):
         return new_input
         
     def project_bin_mask(self, image, index, data, lambda_drop, ps, in_chan, hidden):
-        A = torch.randn(hidden, in_chan * ps * ps)
-        unfold_fn = nn.Unfold(kernel_size=(ps, ps), stride=ps)
         mask = self.get_mask_batch(image, index, data, lambda_drop)
-        patched = self.gen_mask(mask, unfold_fn)
-        output = torch.nn.functional.linear(patched, A, bias=None)
+        patched = self.gen_mask(mask, self.unfold_fn)
+        output = torch.nn.functional.linear(patched, self.A, bias=None)
         bin_output = self.create_binary_mask(output)
         return bin_output
     
@@ -366,7 +367,7 @@ class MaskedViT(VisionTransformer):
         batch_array = [] # collect attn maps
         for i in range(batch_size):
             batch_array.append(np.array(attn_dict[str(idx_np[i])]))
-        batch_tensor = torch.tensor(np.vstack(batch_array))
+        batch_tensor = torch.from_numpy(np.vstack(batch_array)).to(self.device)
 
         val, indices = torch.sort(batch_tensor, dim=1)
         threshold = torch.quantile(val, drop_lambda, dim=1)
