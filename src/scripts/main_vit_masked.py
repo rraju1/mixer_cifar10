@@ -98,4 +98,4 @@ if __name__=='__main__':
         model = get_model(args)
         trainer = Trainer_Masked_ViT(model, args)
         trainer.fit(train_dl, test_dl)
-        torch.save(model.state_dict(), f'./mixer_masked_cifar10_{args.lambda_drop}.pth')
+        torch.save(model.state_dict(), f'./vit_masked_cifar10_{args.lambda_drop}.pth')
