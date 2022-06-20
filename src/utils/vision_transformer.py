@@ -346,7 +346,7 @@ class MaskedViT(VisionTransformer):
         return bin_output
     
     """
-    Given tensor x, create a binary masks which preserves the positions of the zeros
+    Given tensor x, create a binary masks removing the effect of multiplying by random linear transform A
     """
     def create_binary_mask(self, x):
         zeros = torch.zeros_like(x)
