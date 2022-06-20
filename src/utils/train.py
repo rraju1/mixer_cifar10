@@ -231,7 +231,7 @@ class Trainer_Masked_ViT(object):
         img, label = img.to(self.device), label.to(self.device)
 
         with torch.no_grad():
-            if self.model.get_patchdrop_test:
+            if self.model.get_patchdrop_test():
                 out = self.model(img, index)
                 out = self.model.head(out)
                 loss = self.criterion(out, label)
@@ -271,7 +271,7 @@ class Trainer_Masked_ViT(object):
                 }, step=self.num_steps
             )
 
-            if self.model.get_patchdrop_test:
+            if self.model.get_patchdrop_test():
                 num_imgs = 0.
                 self.epoch_loss_drop, self.epoch_corr_drop, self.epoch_acc_drop = 0., 0., 0.
                 for batch in test_dl:
