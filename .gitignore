@@ -144,3 +144,4 @@ src/datasets/
 src/vww_setup.ipynb
 *.ipynb
 *.json
+*.pkl
