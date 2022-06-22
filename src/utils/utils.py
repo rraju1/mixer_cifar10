@@ -147,3 +147,14 @@ def compute_cos(params, params2):
     denom1 = denom1.sqrt().item()
     denom2 = denom2.sqrt().item()
     return num/(denom1 * denom2)
+
+# values returned by this function range from 0 to 1. The closer to 1 the higher magnitude sim. The closer to 0 lower magnitude sim.
+def gradient_mag_sim(params, params2):
+    g1 = 0
+    g2 = 0
+    for idx in range(len(params)):
+        g1 += params[idx].square().sum()
+        g2 += params2[idx].square().sum()
+    g1, g2 = g1.sqrt().item(), g2.sqrt().item()
+    grad_sim = (2 * g1 * g2)/(g1 + g2)
+    return grad_sim
