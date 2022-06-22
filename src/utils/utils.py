@@ -135,3 +135,15 @@ def gen_mask(masks, unfold_fn):
     patched_tensor = unfold_fn(masks.repeat(1,3,1,1))
     patched_tensor = patched_tensor.permute(0,2,1)
     return patched_tensor
+
+def compute_cos(params, params2):
+    num = 0
+    denom1 = 0
+    denom2 = 0
+    for idx in range(len(params)):
+        num += torch.dot(params[idx].flatten(), params2[idx].flatten()).item()
+        denom1 += params[idx].square().sum()
+        denom2 += params2[idx].square().sum()
+    denom1 = denom1.sqrt().item()
+    denom2 = denom2.sqrt().item()
+    return num/(denom1 * denom2)

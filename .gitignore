@@ -141,9 +141,6 @@ dmypy.json
 .vscode
 
 src/datasets/
-src/utils/avg_attns_cifar_testset.json
-src/utils/avg_attns_cifar_trainset.json
 src/vww_setup.ipynb
-src/utils/avg_attns_vww_trainset.json
-src/utils/avg_attns_vww_testset.json
 *.ipynb
+*.json
