@@ -24,6 +24,7 @@ import torchsummary
 import numpy as np
 import json
 import warnings
+from torch import Tensor
 
 def trunc_normal_(tensor, mean=0., std=1., a=-2., b=2.):
     # type: (Tensor, float, float, float, float) -> Tensor
@@ -370,8 +371,13 @@ class MaskedViT(VisionTransformer):
         batch_tensor = torch.from_numpy(np.vstack(batch_array)).to(self.device)
 
         val, indices = torch.sort(batch_tensor, dim=1)
-        threshold = torch.quantile(val, drop_lambda, dim=1)
-        th_attn = val >= threshold[:,None]
+        # assuming nonsalient patchdrop/random
+        # threshold = torch.quantile(val, drop_lambda, dim=1)
+        # th_attn = val >= threshold[:,None]
+        # salient patchdrop
+        threshold = torch.quantile(val, (1 - drop_lambda), dim=1)
+        th_attn = val <= threshold[:,None]
+        
         idx2 = torch.argsort(indices, dim=1) # rearrange patch positions
         for batch_idx in range(th_attn.shape[0]):
             th_attn[batch_idx] = th_attn[batch_idx][idx2[batch_idx]]
