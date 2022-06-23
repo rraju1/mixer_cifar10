@@ -69,6 +69,8 @@ parser.add_argument('--split', type=str, default='index')
 parser.add_argument('--phase', type=str,default='train')
 parser.add_argument('--patchdroptest', action='store_true')
 
+# type
+parser.add_argument('--exp_type', type=str, default='baseline')
 
 args = parser.parse_args()
 args.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
@@ -89,7 +91,8 @@ if args.cutmix_prob>0.:
     experiment_name += f'_cm'
 if args.is_cls_token:
     experiment_name += f"_cls"
-experiment_name += f"_img_size{args.size}_ps{args.patch_size}_lambda{args.lambda_drop}_masked"
+
+experiment_name += f"_{args.exp_type}_lambda{args.lambda_drop}_masked"
 
 
 if __name__=='__main__':
@@ -98,4 +101,8 @@ if __name__=='__main__':
         model = get_model(args)
         trainer = Trainer_Masked_ViT(model, args)
         trainer.fit(train_dl, test_dl)
-        torch.save(model.state_dict(), f'./vit_masked_cifar10_{args.lambda_drop}.pth')
+        wandb.alert(
+            title=f"{experiment_name}",
+            text="Run finished."
+        )
+        torch.save(model.state_dict(), f'./{experiment_name}.pth')
