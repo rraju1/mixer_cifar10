@@ -144,8 +144,10 @@ def compute_cos(params, params2):
         num += torch.dot(params[idx].flatten(), params2[idx].flatten()).item()
         denom1 += params[idx].square().sum()
         denom2 += params2[idx].square().sum()
-    denom1 = denom1.sqrt().item()
+    denom1 = denom1.sqrt().item() 
     denom2 = denom2.sqrt().item()
+    cos_sim = num/(denom1 * denom2)
+    # print(f'cos sim: {num} {denom1} {denom2} {cos_sim}')
     return num/(denom1 * denom2)
 
 # values returned by this function range from 0 to 1. The closer to 1 the higher magnitude sim. The closer to 0 lower magnitude sim.
@@ -155,6 +157,9 @@ def gradient_mag_sim(params, params2):
     for idx in range(len(params)):
         g1 += params[idx].square().sum()
         g2 += params2[idx].square().sum()
-    g1, g2 = g1.sqrt().item(), g2.sqrt().item()
-    grad_sim = (2 * g1 * g2)/(g1 + g2)
+    g1, g2 = g1.item(), g2.item()
+    num = (2 * np.sqrt(g1) * np.sqrt(g2))
+    denom = g1 + g2
+    grad_sim = num/denom
+    # print(f'grad sim: {num} {denom} {grad_sim}')
     return grad_sim
