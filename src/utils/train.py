@@ -1,4 +1,5 @@
 # from matplotlib import image
+from matplotlib.pyplot import text
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -256,6 +257,13 @@ class Trainer_Masked_ViT(object):
                 }, step=self.num_steps
             )
             self.scheduler.step()
+            # for testing purposes
+            # if epoch > 10:
+            #     wandb.alert(
+            #         title="Epoch limit reached",
+            #         text="stop and run other methods"
+            #     )
+            #     exit()
 
             self.model.set_phase("test")
             num_imgs = 0.
@@ -263,6 +271,7 @@ class Trainer_Masked_ViT(object):
             for batch in test_dl:
                 self._test_one_step(batch)
                 num_imgs += batch[0].size(0)
+            print(f'num correct: {self.epoch_corr}')
             self.epoch_loss /= num_imgs
             self.epoch_acc = self.epoch_corr / num_imgs
             wandb.log({
@@ -270,6 +279,7 @@ class Trainer_Masked_ViT(object):
                 'val_acc': self.epoch_acc
                 }, step=self.num_steps
             )
+            torch.save(self.model.state_dict(), f'./vit_baseline_epoch{epoch}.pth')
 
             if self.model.get_patchdrop_test():
                 num_imgs = 0.
@@ -284,7 +294,7 @@ class Trainer_Masked_ViT(object):
                     'val_drop_acc': self.epoch_acc_drop
                     }, step=self.num_steps
                 )
-
+            
             # torch.save(self.model.state_dict(), f'./mixer_masked_cifar10_{self.lambda_drop}_epoch{epoch}.pth')
 
 
@@ -431,4 +441,4 @@ class Trainer_Masked_ViT(object):
 #                 'val_acc': self.epoch_acc
 #                 }, step=self.num_steps
 #             )
-#             # torch.save(self.model.state_dict(), f'./mixer_masked_cifar10_{self.lambda_drop}_epoch{epoch}.pth')
+            # torch.save(self.model.state_dict(), f'./mixer_masked_cifar10_{self.lambda_drop}_epoch{epoch}.pth')
