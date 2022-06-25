@@ -372,11 +372,11 @@ class MaskedViT(VisionTransformer):
 
         val, indices = torch.sort(batch_tensor, dim=1)
         # assuming nonsalient patchdrop/random
-        # threshold = torch.quantile(val, drop_lambda, dim=1)
-        # th_attn = val >= threshold[:,None]
+        threshold = torch.quantile(val, drop_lambda, dim=1)
+        th_attn = val >= threshold[:,None]
         # salient patchdrop
-        threshold = torch.quantile(val, (1 - drop_lambda), dim=1)
-        th_attn = val <= threshold[:,None]
+        # threshold = torch.quantile(val, (1 - drop_lambda), dim=1)
+        # th_attn = val <= threshold[:,None]
         
         idx2 = torch.argsort(indices, dim=1) # rearrange patch positions
         for batch_idx in range(th_attn.shape[0]):
