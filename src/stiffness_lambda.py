@@ -32,95 +32,32 @@ def train_model(model, train_dataloader, optimizer, criterion, scheduler, scaler
                 # adjust lambda to exactly match pixel ratio
                 lam = 1 - ((bbx2 - bbx1) * (bby2 - bby1) / (img.size()[-1] * img.size()[-2]))
                 # compute output
-                with torch.cuda.amp.autocast():
-                    out = model(img, idx)
-                    out = model.head(out)
-                    loss = criterion(out, target_a) * lam + criterion(out, target_b) * (1. - lam)
+                out = model(img, idx)
+                out = model.head(out)
+                loss = criterion(out, target_a) * lam + criterion(out, target_b) * (1. - lam)
+                # with torch.cuda.amp.autocast():
+                #     out = model(img, idx)
+                #     out = model.head(out)
+                #     loss = criterion(out, target_a) * lam + criterion(out, target_b) * (1. - lam)
             else:
                 # compute output
-                with torch.cuda.amp.autocast():
-                    out = model(img, idx)
-                    out = model.head(out)
-                    loss = criterion(out, label)
-            scaler.scale(loss).backward()
-            scaler.step(optimizer)
-            scaler.update()
+                out = model(img, idx)
+                out = model.head(out)
+                loss = criterion(out, label)
+                # with torch.cuda.amp.autocast():
+                #     out = model(img, idx)
+                #     out = model.head(out)
+                #     loss = criterion(out, label)
+            loss.backward()
+            optimizer.step()
+            
+            # scaler.scale(loss).backward()
+            # scaler.step(optimizer)
+            # scaler.update()
         scheduler.step()
         savepath = f"{os.getcwd()}/stiffness_ckpts/torch_model_{epoch}.pth"
         torch.save(model.state_dict(), savepath)
         print(f"Finished training epoch {epoch}. Saving ckpt to " + savepath)
-
-# def evaluate_sims(model, lambda1, epoch, train_dataloader, args, optimizer, criterion, scaler):
-#     model.train()
-#     savepath = f"{os.getcwd()}/stiffness_ckpts/torch_model_{epoch}.pth"
-#     model.load_state_dict(torch.load(savepath))
-#     cos_sim_list = []
-#     grad_sim_list = []
-#     for img, label, idx in train_dataloader:
-#         img, label = img.to(args.device), label.to(args.device)
-#         r = np.random.rand(1)
-#         if args.cutmix_beta > 0 and r < args.cutmix_prob:
-#             # generate mixed sample
-#             lam = np.random.beta(args.cutmix_beta, args.cutmix_beta)
-#             rand_index = torch.randperm(img.size(0)).to(args.device)
-#             target_a = label
-#             target_b = label[rand_index]
-#             bbx1, bby1, bbx2, bby2 = rand_bbox(img.size(), lam)
-#             img[:, :, bbx1:bbx2, bby1:bby2] = img[rand_index, :, bbx1:bbx2, bby1:bby2]
-#             # adjust lambda to exactly match pixel ratio
-#             lam = 1 - ((bbx2 - bbx1) * (bby2 - bby1) / (img.size()[-1] * img.size()[-2]))
-#             # compute output
-#             with torch.cuda.amp.autocast():
-#                 model.set_lambda(0.0)
-#                 out = model(img, idx)
-#                 out = model.head(out)
-#                 loss = criterion(out, target_a) * lam + criterion(out, target_b) * (1. - lam)
-#                 scaler.scale(loss).backward()
-#                 parameters = deepcopy([p.grad.data.detach().cpu() for p in model.parameters() if p.grad is not None and p.requires_grad])
-#                 optimizer.zero_grad()
-#                 model.set_lambda(lambda1)
-#                 out = model(img, idx)
-#                 out = model.head(out)
-#                 loss = criterion(out, target_a) * lam + criterion(out, target_b) * (1. - lam)
-#                 scaler.scale(loss).backward()
-#                 occ_parameters = deepcopy([p.grad.data.detach().cpu() for p in model.parameters() if p.grad is not None and p.requires_grad])
-#                 optimizer.zero_grad()
-#         else:
-#             # compute output
-#             with torch.cuda.amp.autocast():
-#                 model.set_lambda(0.0)
-#                 out = model(img, idx)
-#                 out = model.head(out)
-#                 loss = criterion(out, label)
-#                 scaler.scale(loss).backward()
-#                 parameters = deepcopy([p.grad.data.detach().cpu() for p in model.parameters() if p.grad is not None and p.requires_grad])
-#                 optimizer.zero_grad()
-#                 model.set_lambda(lambda1)
-#                 out = model(img, idx)
-#                 out = model.head(out)
-#                 loss = criterion(out, label)
-#                 scaler.scale(loss).backward()
-#                 occ_parameters = deepcopy([p.grad.data.detach().cpu() for p in model.parameters() if p.grad is not None and p.requires_grad])
-#                 optimizer.zero_grad()
-#         cur_cos_sim = compute_cos(parameters, occ_parameters)
-#         cur_grad_sim = gradient_mag_sim(parameters, occ_parameters)
-#         cos_sim_list.append(cur_cos_sim)
-#         grad_sim_list.append(cur_grad_sim)
-
-#     cos_sum = sum(cos_sim_list)
-#     total_len = len(cos_sim_list)
-#     print(f'cos sum: {cos_sum}, total_len {total_len}')
-#     avg_cos = cos_sum/total_len
-#     print(f'avg cos sum: {avg_cos}')
-
-#     grad_sum = sum(grad_sim_list)
-#     total_len = len(grad_sim_list)
-#     print(f'grad sum: {grad_sum}, total_len {total_len}')
-#     avg_grad = grad_sum/total_len
-#     print(f'avg grad sum: {avg_grad}')
-
-#     print(f'Finished processing for cos stiffness and grad sim')
-#     return avg_cos, avg_grad
 
 def evaluate_sims(model, lambda1, epoch, train_dataloader, args, optimizer, criterion, scaler):
     model.train()
@@ -277,7 +214,7 @@ def main():
 
     # saved in stiffness_ckpts
     num_epochs = 11
-    # train_model(model, train_dataloader, optimizer, criterion, scheduler, scaler, args, num_epochs)
+    train_model(model, train_dataloader, optimizer, criterion, scheduler, scaler, args, num_epochs)
 
     epoch_cos_sim = {}
     epoch_grad_sim = {}
@@ -293,7 +230,7 @@ def main():
         epoch_cos_sim[lambda1] = cos_list
         epoch_grad_sim[lambda1] = grad_list
 
-    with open(f'epoch_cos_sim.pkl', 'wb') as input_file:
+    with open(f'epoch_cos_sim_just.pkl', 'wb') as input_file:
         pkl.dump(epoch_cos_sim , input_file)
 
     with open(f'epoch_grad_sim.pkl', 'wb') as input_file:
