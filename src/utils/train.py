@@ -279,7 +279,7 @@ class Trainer_Masked_ViT(object):
                 'val_acc': self.epoch_acc
                 }, step=self.num_steps
             )
-            torch.save(self.model.state_dict(), f'./vit_baseline_epoch{epoch}.pth')
+            # torch.save(self.model.state_dict(), f'./vit_baseline_epoch{epoch}.pth')
 
             if self.model.get_patchdrop_test():
                 num_imgs = 0.
