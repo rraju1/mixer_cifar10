@@ -271,7 +271,7 @@ class Trainer_Masked_ViT(object):
             for batch in test_dl:
                 self._test_one_step(batch)
                 num_imgs += batch[0].size(0)
-            print(f'num correct: {self.epoch_corr}')
+            # print(f'num correct: {self.epoch_corr}')
             self.epoch_loss /= num_imgs
             self.epoch_acc = self.epoch_corr / num_imgs
             wandb.log({
