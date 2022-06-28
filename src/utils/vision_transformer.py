@@ -318,7 +318,7 @@ class MaskedViT(VisionTransformer):
         new_N = int((1 - drop_lambda) * (N - 1)) # need to discard cls token in calculation
         end_params = B * new_N * C
         x_ncls = x[:,1:,:] + 1e-8 # extract all tokens exlcuding cls token, need to add 1e-8 to make sure pos emb is not zero
-        mask = self.project_bin_mask(img, idx, attn_dict, drop_lambda, self.patch_size, self.in_chans, self.embed_dim)
+        mask = self.project_bin_mask(img, idx, attn_dict, drop_lambda, new_N)
         masked_x = x_ncls * mask
         
         masked_x = masked_x[masked_x != 0]
@@ -339,8 +339,8 @@ class MaskedViT(VisionTransformer):
         # print(new_input.shape)
         return new_input
         
-    def project_bin_mask(self, image, index, data, lambda_drop, ps, in_chan, hidden):
-        mask = self.get_mask_batch(image, index, data, lambda_drop)
+    def project_bin_mask(self, image, index, data, lambda_drop, new_N):
+        mask = self.get_mask_batch(image, index, data, lambda_drop, new_N)
         patched = self.gen_mask(mask, self.unfold_fn)
         output = torch.nn.functional.linear(patched, self.A, bias=None)
         bin_output = self.create_binary_mask(output)
@@ -358,7 +358,7 @@ class MaskedViT(VisionTransformer):
         patched_tensor = patched_tensor.permute(0,2,1)
         return patched_tensor
 
-    def get_mask_batch(self, image, idx, attn_dict, drop_lambda):
+    def get_mask_batch(self, image, idx, attn_dict, drop_lambda, new_N):
         idx_np = idx.numpy()
         w_featmap = int(np.sqrt(len(attn_dict[str(0)]))) # 14 0 is a random key
         h_featmap = int(np.sqrt(len(attn_dict[str(0)]))) # 14
@@ -377,6 +377,10 @@ class MaskedViT(VisionTransformer):
         # salient patchdrop
         # threshold = torch.quantile(val, (1 - drop_lambda), dim=1)
         # th_attn = val <= threshold[:,None]
+        total_N = th_attn.shape[1]
+        ascend_N = total_N - new_N
+        th_attn[:,:ascend_N] = False
+        th_attn[:,ascend_N:] = True
         
         idx2 = torch.argsort(indices, dim=1) # rearrange patch positions
         for batch_idx in range(th_attn.shape[0]):
