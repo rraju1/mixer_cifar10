@@ -133,11 +133,11 @@ if __name__=='__main__':
     train_dl, test_dl = get_dataloaders(args)
     model = get_model(args)
 
-    path = 'artifacts/vit_small_masked_vww_adam_cosine_cm_salient_lambda0.5_masked.pth'
+    path = 'artifacts/vit_small_masked_vww_adam_cosine_salient_lambda0.5_masked.pth'
 
     y_true, y_pred, epoch_corr, num_imgs = evaluate_model(model, test_dl, path, args)
     print(f'corr: {epoch_corr} num_imgs: {num_imgs} acc: {epoch_corr/num_imgs}')
-    plot_cm(y_true, y_pred, 'Salient')
+    plot_cm(y_true, y_pred, 'salient')
     plt.savefig('salient.png')
 
 
