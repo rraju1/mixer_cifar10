@@ -451,7 +451,6 @@ class DynVit(VisionTransformer):
         self.patch_size = patch_size
         self.in_chans = in_chans
         self.device = kwargs['device']
-        self.lambda_drop = kwargs['lambda_drop']
         self.attn_maps_path = kwargs['attn_maps_path']
         self.attn_maps_test_path = kwargs['attn_maps_test_path']
         self.phase = kwargs['phase']
@@ -552,7 +551,7 @@ class DynVit(VisionTransformer):
 
         val, indices = torch.sort(batch_tensor, dim=1)
         # assuming nonsalient patchdrop/random
-        threshold = torch.quantile(val.float(), drop_lambda, dim=1)
+        threshold = torch.quantile(val.float(), drop_lambda.float(), dim=1)
         th_attn = val >= threshold[:,None]
         # salient patchdrop
         # threshold = torch.quantile(val, (1 - drop_lambda), dim=1)
@@ -626,12 +625,6 @@ class DynVit(VisionTransformer):
 
     def set_phase(self, new_phase):
         self.phase = new_phase
-        
-    def set_lambda(self, lambda_drop):
-        self.lambda_drop = lambda_drop
-    
-    def get_lambda(self):
-        return self.lambda_drop
     
     def get_phase(self):
         return self.phase
