@@ -92,7 +92,7 @@ def get_model(args):
         kwargs['attn_drop_rate'] = args.attn_drop_rate
         kwargs['drop_path_rate'] = args.drop_path_rate
         kwargs['patch_size'] = args.patch_size
-        kwargs['lambda_drop'] = args.lambda_drop
+        kwargs['lambda_drop'] = args.regularizer
         kwargs['device'] = args.device
         kwargs['attn_maps_path'] = args.attn_maps_path
         kwargs['attn_maps_test_path'] = args.attn_maps_test_path
