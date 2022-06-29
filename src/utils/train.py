@@ -306,7 +306,7 @@ class Trainer_DViT(object):
         self.lambda_drop = args.lambda_drop
         self.ps = args.patch_size
         self.hidden_size = args.hidden_size
-        self.regularizer = args.z_term
+        self.regularizer = args.regularizer
 
 
         if args.optimizer=='sgd':
@@ -384,7 +384,8 @@ class Trainer_DViT(object):
         acc = out.argmax(dim=-1).eq(label).sum(-1)/img.size(0)
         wandb.log({
             'loss':loss,
-            'acc':acc
+            'acc':acc,
+            'drop_rate': lambda1
         }, step=self.num_steps)
 
 
