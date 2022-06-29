@@ -62,7 +62,8 @@ parser.add_argument('--padding', type=int, default=4)
 
 
 ## Patch drop args
-parser.add_argument('--z_term', type=float, default=0.1)
+parser.add_argument('--regularizer', type=float, default=0.1)
+parser.add_argument('--lambda-drop', type=float, default=0.1)
 parser.add_argument('--attn_maps_path', type=str, default='./utils/avg_attns_vww_trainset.json')
 parser.add_argument('--attn_maps_test_path', type=str, default='./utils/avg_attns_vww_testset.json')
 parser.add_argument('--split', type=str, default='index')
@@ -92,7 +93,7 @@ if args.cutmix_prob>0.:
 if args.is_cls_token:
     experiment_name += f"_cls"
 
-experiment_name += f"_{args.exp_type}"
+experiment_name += f"regularizer{args.regularizer}_{args.exp_type}"
 
 
 if __name__=='__main__':
