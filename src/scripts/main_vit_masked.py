@@ -6,11 +6,11 @@ wandb.login()
 
 from utils.dataloader import get_dataloaders
 from utils.utils import get_model
-from utils.train import Trainer_Masked_ViT
+from utils.train import Trainer_Masked_ViT, Trainer_Cutmix_ViT
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--dataset', required=True, choices=['c10', 'c100', 'svhn', 'vww'])
-parser.add_argument('--model', required=True, choices=['mlp_mixer', 'mlp_mixer_masked', 'vit_small', 'vit_small_masked'])
+parser.add_argument('--model', required=True, choices=['vit_small', 'vit_small_masked', 'vit_cutmix'])
 parser.add_argument('--batch-size', type=int, default=32)
 parser.add_argument('--eval-batch-size', type=int, default=32)
 parser.add_argument('--num-workers', type=int, default=4)
@@ -99,7 +99,8 @@ if __name__=='__main__':
     with wandb.init(project='vit', config=args, name=experiment_name):
         train_dl, test_dl = get_dataloaders(args)
         model = get_model(args)
-        trainer = Trainer_Masked_ViT(model, args)
+        # trainer = Trainer_Masked_ViT(model, args)
+        trainer = Trainer_Cutmix_ViT(model, args)
         trainer.fit(train_dl, test_dl)
         wandb.alert(
             title=f"{experiment_name}",
