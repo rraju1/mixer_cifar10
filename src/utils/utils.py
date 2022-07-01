@@ -99,6 +99,29 @@ def get_model(args):
         kwargs['phase'] = args.phase
         kwargs['patchdroptest'] = args.patchdroptest
         model = vit_small_dynamic(**kwargs)
+    elif args.model=='vit_cutmix':
+        from utils.vision_transformer import vit_small_cutmix
+        kwargs = {}
+        kwargs['in_chans'] = args.in_chans
+        kwargs['embed_dim'] = args.hidden_size
+        kwargs['depth'] = args.num_layers
+        kwargs['num_heads'] = args.num_heads
+        kwargs['mlp_ratio'] = args.mlp_ratio
+        kwargs['qkv_bias'] = args.qkv_bias
+        kwargs['img_size'] = [args.size]
+        kwargs['num_classes'] = args.num_classes
+        kwargs['qk_scale'] = args.qk_scale
+        kwargs['drop_rate'] = args.drop_p
+        kwargs['attn_drop_rate'] = args.attn_drop_rate
+        kwargs['drop_path_rate'] = args.drop_path_rate
+        kwargs['patch_size'] = args.patch_size
+        kwargs['lambda_drop'] = args.lambda_drop
+        kwargs['device'] = args.device
+        kwargs['attn_maps_path'] = args.attn_maps_path
+        kwargs['attn_maps_test_path'] = args.attn_maps_test_path
+        kwargs['phase'] = args.phase
+        kwargs['patchdroptest'] = args.patchdroptest
+        model = vit_small_cutmix(**kwargs)
     else:
         raise ValueError(f"No such model: {args.model}")
 
