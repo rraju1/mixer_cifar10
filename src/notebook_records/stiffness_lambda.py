@@ -63,12 +63,12 @@ def evaluate_sims(model, lambda1, epoch, train_dataloader, args, optimizer, crit
     model.train()
     savepath = f"{os.getcwd()}/stiffness_ckpts/torch_model_{epoch}.pth"
     model.load_state_dict(torch.load(savepath))
-    cos_sim_list = []
-    grad_sim_list = []
+    cos_sim_old_list = []
+    cos_sim_new_list = []
     for img, label, idx in train_dataloader:
         img, label = img.to(args.device), label.to(args.device)
-        r = np.random.rand(1)
-        if args.cutmix_beta > 0 and r < args.cutmix_prob:
+        # r = np.random.rand(1)
+        if args.cutmix_beta > 0:
             # generate mixed sample
             lam = np.random.beta(args.cutmix_beta, args.cutmix_beta)
             rand_index = torch.randperm(img.size(0)).to(args.device)
@@ -80,88 +80,55 @@ def evaluate_sims(model, lambda1, epoch, train_dataloader, args, optimizer, crit
             lam = 1 - ((bbx2 - bbx1) * (bby2 - bby1) / (img.size()[-1] * img.size()[-2]))
             # compute output
             model.set_lambda(0.0)
-            out = model(img, idx)
+            out = model(img, idx, use_cutmix=False)
             out = model.head(out)
             loss = criterion(out, target_a) * lam + criterion(out, target_b) * (1. - lam)
             loss.backward()
             parameters = deepcopy([p.grad.data.detach().cpu() for p in model.parameters() if p.grad is not None and p.requires_grad])
             optimizer.zero_grad()
             model.set_lambda(lambda1)
-            out = model(img, idx)
+            out = model(img, idx, use_cutmix=False)
             out = model.head(out)
             loss = criterion(out, target_a) * lam + criterion(out, target_b) * (1. - lam)
             loss.backward()
-            occ_parameters = deepcopy([p.grad.data.detach().cpu() for p in model.parameters() if p.grad is not None and p.requires_grad])
+            old_mask_parameters = deepcopy([p.grad.data.detach().cpu() for p in model.parameters() if p.grad is not None and p.requires_grad])
             optimizer.zero_grad()
-            # with torch.cuda.amp.autocast():
-            #     model.set_lambda(0.0)
-            #     scaler.scale(loss).backward()
-            #     parameters = deepcopy([p.grad.data.detach().cpu() for p in model.parameters() if p.grad is not None and p.requires_grad])
-            #     optimizer.zero_grad()
-            #     model.set_lambda(lambda1)
-            #     out = model(img, idx)
-            #     out = model.head(out)
-            #     loss = criterion(out, target_a) * lam + criterion(out, target_b) * (1. - lam)
-            #     scaler.scale(loss).backward()
-            #     occ_parameters = deepcopy([p.grad.data.detach().cpu() for p in model.parameters() if p.grad is not None and p.requires_grad])
-            #     optimizer.zero_grad()
+
+            kwargs = {}
+            kwargs['rand_index'] = rand_index
+            kwargs['bbx1'], kwargs['bbx2'], kwargs['bby1'], kwargs['bby2'] = bbx1, bbx2, bby1, bby2
+            out = model(img, idx, use_cutmix=True, **kwargs)
+            out = model.head(out)
+            loss = criterion(out, target_a) * lam + criterion(out, target_b) * (1. - lam)
+            loss.backward()
+            new_mask_parameters = deepcopy([p.grad.data.detach().cpu() for p in model.parameters() if p.grad is not None and p.requires_grad])
+            optimizer.zero_grad()
         else:
             # compute output
-            model.set_lambda(0.0)
-            out = model(img, idx)
-            out = model.head(out)
-            loss = criterion(out, label)
-            loss.backward()
-            parameters = deepcopy([p.grad.data.detach().cpu() for p in model.parameters() if p.grad is not None and p.requires_grad])
-            optimizer.zero_grad()
-            model.set_lambda(lambda1)
-            out = model(img, idx)
-            out = model.head(out)
-            loss = criterion(out, label)
-            loss.backward()
-            occ_parameters = deepcopy([p.grad.data.detach().cpu() for p in model.parameters() if p.grad is not None and p.requires_grad])
-            optimizer.zero_grad()
-            # with torch.cuda.amp.autocast():
-            #     model.set_lambda(0.0)
-            #     out = model(img, idx)
-            #     out = model.head(out)
-            #     loss = criterion(out, label)
-            #     scaler.scale(loss).backward()
-            #     parameters = deepcopy([p.grad.data.detach().cpu() for p in model.parameters() if p.grad is not None and p.requires_grad])
-            #     optimizer.zero_grad()
-            #     model.set_lambda(lambda1)
-            #     out = model(img, idx)
-            #     out = model.head(out)
-            #     loss = criterion(out, label)
-            #     scaler.scale(loss).backward()
-            #     occ_parameters = deepcopy([p.grad.data.detach().cpu() for p in model.parameters() if p.grad is not None and p.requires_grad])
-            #     optimizer.zero_grad()
-        cur_cos_sim = compute_cos(parameters, occ_parameters)
-        cur_grad_sim = gradient_mag_sim(parameters, occ_parameters)
-        cos_sim_list.append(cur_cos_sim)
-        grad_sim_list.append(cur_grad_sim)
+            pass
+        cos_sim_old = compute_cos(parameters, old_mask_parameters)
+        cos_sim_new = compute_cos(parameters, new_mask_parameters)
+        # cur_grad_sim = gradient_mag_sim(parameters, occ_parameters)
+        cos_sim_old_list.append(cos_sim_old)
+        cos_sim_new_list.append(cos_sim_new)
+        # grad_sim_list.append(cur_grad_sim)
 
-    cos_sum = sum(cos_sim_list)
-    total_len = len(cos_sim_list)
-    print(f'cos sum: {cos_sum}, total_len {total_len}')
-    avg_cos = cos_sum/total_len
-    print(f'avg cos sum: {avg_cos}')
+    cos_sum = sum(cos_sim_old_list)
+    total_len = len(cos_sim_old_list)    
+    new_cos_sum = sum(cos_sim_new_list)
 
-    grad_sum = sum(grad_sim_list)
-    total_len = len(grad_sim_list)
-    print(f'grad sum: {grad_sum}, total_len {total_len}')
-    avg_grad = grad_sum/total_len
-    print(f'avg grad sum: {avg_grad}')
+    avg_cos_old = cos_sum/total_len
+    avg_cos_new = new_cos_sum/total_len
 
-    print(f'Finished processing for cos stiffness and grad sim')
-    return avg_cos, avg_grad
+    print(f'Finished processing for cos stiffness')
+    return avg_cos_old, avg_cos_new
 
 
 def main():
     args = SimpleNamespace()
     args.dataset = 'vww'
     args.root = '/group/ece/ececompeng/lipasti/libraries/datasets/vw_coco2014_96'
-    args.model = 'vit_small_masked'
+    args.model = 'vit_cutmix'
     args.batch_size = 128
     args.eval_batch_size = 10
     args.num_workers = 4
@@ -214,27 +181,27 @@ def main():
 
     # saved in stiffness_ckpts
     num_epochs = 11
-    train_model(model, train_dataloader, optimizer, criterion, scheduler, scaler, args, num_epochs)
+    # train_model(model, train_dataloader, optimizer, criterion, scheduler, scaler, args, num_epochs)
 
-    epoch_cos_sim = {}
-    epoch_grad_sim = {}
+    epoch_old_cos_sim = {}
+    epoch_new_cos_sim = {}
 
-    for lambda1 in [0.1, 0.2, 0.3, 0.4, 0.5]:
-        cos_list = []
-        grad_list = []
+    for lambda1 in [0.4, 0.5]:
+        old_mask_cos_list = []
+        new_mask_cos_list = []
         for epoch in range(num_epochs):
             print(f'Patchdrop with lambda {lambda1} and epoch {epoch}')
-            avg_cos, avg_grad = evaluate_sims(model, lambda1, epoch, train_dataloader, args, optimizer, criterion, scaler)
-            cos_list.append(avg_cos)
-            grad_list.append(avg_grad)
-        epoch_cos_sim[lambda1] = cos_list
-        epoch_grad_sim[lambda1] = grad_list
+            avg_cos_old, avg_cos_new = evaluate_sims(model, lambda1, epoch, train_dataloader, args, optimizer, criterion, scaler)
+            old_mask_cos_list.append(avg_cos_old)
+            new_mask_cos_list.append(avg_cos_new)
+        epoch_old_cos_sim[lambda1] = old_mask_cos_list
+        epoch_new_cos_sim[lambda1] = new_mask_cos_list
 
-    with open(f'epoch_cos_sim_just.pkl', 'wb') as input_file:
-        pkl.dump(epoch_cos_sim , input_file)
+    with open(f'old_mask_strat.pkl', 'wb') as input_file:
+        pkl.dump(epoch_old_cos_sim , input_file)
 
-    with open(f'epoch_grad_sim.pkl', 'wb') as input_file:
-        pkl.dump(epoch_grad_sim , input_file)
+    with open(f'new_mask_strat.pkl', 'wb') as input_file:
+        pkl.dump(epoch_new_cos_sim , input_file)
 
 
 if __name__ == "__main__":
