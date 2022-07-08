@@ -658,7 +658,10 @@ class CutMixViT(VisionTransformer):
     def forward(self, x, idx=None, use_cutmix=False, **kwargs):
         x_tokens = self.prepare_tokens(x)
         if self.phase == 'train':
-            x = self.patchdrop(x_tokens, x, idx, self.data, self.lambda_drop, use_cutmix, **kwargs)
+            if use_cutmix == True:
+                x, lam = self.patchdrop(x_tokens, x, idx, self.data, self.lambda_drop, use_cutmix, **kwargs)
+            else:
+                x = self.patchdrop(x_tokens, x, idx, self.data, self.lambda_drop, use_cutmix, **kwargs)
         elif self.phase == 'test' and self.patchdroptest:
             x = self.patchdrop(x_tokens, x, idx, self.test_data, self.lambda_drop, use_cutmix, **kwargs)
         else:
@@ -667,7 +670,11 @@ class CutMixViT(VisionTransformer):
         for blk in self.blocks:
             x = blk(x)
         x = self.norm(x)
-        return x[:, 0]
+
+        if use_cutmix == True:
+            return x[:, 0], lam
+        else:
+            return x[:, 0]
     
     # gets called after prepare tokens and positional info is added
     def patchdrop(self, x, img, idx, attn_dict, drop_lambda, use_cutmix=False, **kwargs):
@@ -675,9 +682,12 @@ class CutMixViT(VisionTransformer):
         new_N = int((1 - drop_lambda) * (N - 1)) # need to discard cls token in calculation
         end_params = B * new_N * C
         x_ncls = x[:,1:,:] + 1e-8 # extract all tokens exlcuding cls token, need to add 1e-8 to make sure pos emb is not zero
-        mask = self.project_bin_mask(img, idx, attn_dict, drop_lambda, new_N, use_cutmix, **kwargs)
-        masked_x = x_ncls * mask
+        if use_cutmix == True:
+            mask, lam = self.project_bin_mask(img, idx, attn_dict, drop_lambda, new_N, use_cutmix, **kwargs)
+        else:
+            mask = self.project_bin_mask(img, idx, attn_dict, drop_lambda, new_N, use_cutmix, **kwargs)
         
+        masked_x = x_ncls * mask
         masked_x = masked_x[masked_x != 0]
         
         # need to deal with the case where drop didnt work
@@ -694,17 +704,23 @@ class CutMixViT(VisionTransformer):
         assert new_input.shape == (B, new_N, C)
         new_input = torch.cat([x[:,0,:].unsqueeze(1), new_input], dim=1)
         # print(new_input.shape)
-        return new_input
+        if use_cutmix == True:
+            return new_input, lam
+        else:
+            return new_input
         
     def project_bin_mask(self, image, index, data, lambda_drop, new_N, use_cutmix=False, **kwargs):
         if use_cutmix == False:
             mask = self.get_mask_batch(image, index, data, lambda_drop, new_N)
         else:
-            mask = self.get_cutmix_aware_mask_batch(image, index, data, lambda_drop, new_N, **kwargs)
+            mask, lam = self.get_cutmix_aware_mask_batch(image, index, data, lambda_drop, new_N, **kwargs)
         patched = self.gen_mask(mask, self.unfold_fn)
         output = torch.nn.functional.linear(patched, self.A, bias=None)
         bin_output = self.create_binary_mask(output)
-        return bin_output
+        if use_cutmix == False:
+            return bin_output
+        else:
+            return bin_output, lam
     
     """
     Given tensor x, create a binary masks removing the effect of multiplying by random linear transform A
@@ -790,40 +806,13 @@ class CutMixViT(VisionTransformer):
         th_attn = th_attn.float() # bool -> float
         bin_mask = th_attn.reshape(-1, w_featmap, h_featmap)
         upscale_mask = torch.nn.functional.interpolate(bin_mask.unsqueeze(1), scale_factor=scale, mode="nearest")
-        return upscale_mask
 
-    def get_last_selfattention(self, x, idx=None, use_cutmix=False, **kwargs):
-        x_tokens = self.prepare_tokens(x)
-        if self.phase == 'train':
-            x = self.patchdrop(x_tokens, x, idx, self.data, self.lambda_drop, use_cutmix, **kwargs)
-        elif self.phase == 'test' and self.patchdroptest:
-            x = self.patchdrop(x_tokens, x, idx, self.test_data, self.lambda_drop, use_cutmix, **kwargs)
-        else:
-            x = x_tokens
-
-        for i, blk in enumerate(self.blocks):
-            if i < len(self.blocks) - 1:
-                x = blk(x)
-            else:
-                # return attention of the last block
-                return blk(x, return_attention=True)
-
-    def get_intermediate_layers(self, x, n=1, idx=None, use_cutmix=False, **kwargs):
-        x_tokens = self.prepare_tokens(x)
-        if self.phase == 'train':
-            x = self.patchdrop(x_tokens, x, idx, self.data, self.lambda_drop, use_cutmix, **kwargs)
-        elif self.phase == 'test' and self.patchdroptest:
-            x = self.patchdrop(x_tokens, x, idx, self.test_data, self.lambda_drop, use_cutmix, **kwargs)
-        else:
-            x = x_tokens
-
-        # we return the output tokens from the `n` last blocks
-        output = []
-        for i, blk in enumerate(self.blocks):
-            x = blk(x)
-            if len(self.blocks) - i <= n:
-                output.append(self.norm(x))
-        return output
+        cutmix_patch = upscale_mask[:,:,bbx1:bbx2,bby1:bby2]        
+        ones_patches = torch.sum(cutmix_patch, dim=(-1, -2))
+        surviving_patches = torch.div(ones_patches, (self.patch_size * self.patch_size), rounding_mode="floor")
+        lam = torch.div(surviving_patches, new_N)
+        lam = 1. - lam
+        return upscale_mask, lam.squeeze(1) # need to get rid of that 1st dim
 
     def set_patchdrop_test(self, use_idx_test):
         self.patchdroptest = use_idx_test

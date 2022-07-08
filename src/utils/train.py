@@ -497,6 +497,7 @@ class Trainer_Cutmix_ViT(object):
 
         self.epochs = args.epochs
         self.criterion = nn.CrossEntropyLoss(label_smoothing=args.label_smoothing)
+        self.cutmix_criterion = nn.CrossEntropyLoss(label_smoothing=args.label_smoothing, reduction='none')
 
         with open(args.attn_maps_path) as json_file:
             self.data = json.load(json_file)
@@ -534,15 +535,19 @@ class Trainer_Cutmix_ViT(object):
                 kwargs['bbx2'] = bbx2
                 kwargs['bby1'] = bby1
                 kwargs['bby2'] = bby2
-                out = self.model(img, index, use_cutmix=True, **kwargs)
+                out, lam = self.model(img, index, use_cutmix=True, **kwargs)
                 out = self.model.head(out)
-                loss = self.criterion(out, target_a) * lam + self.criterion(out, target_b) * (1. - lam)
+                loss = ((self.cutmix_criterion(out, target_a) * lam) + (self.cutmix_criterion(out, target_b) * (1. - lam))).mean()
+                # print(f'{individual_loss}, {lam}')
+                # loss = torch.mean(individual_loss)
+                # print(f'{loss}')
         else:
             # compute output
             with torch.cuda.amp.autocast():
                 out = self.model(img, index)
                 out = self.model.head(out)
                 loss = self.criterion(out, label)
+
 
         self.scaler.scale(loss).backward()
         if self.clip_grad:
