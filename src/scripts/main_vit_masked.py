@@ -99,8 +99,8 @@ if __name__=='__main__':
     with wandb.init(project='vit', config=args, name=experiment_name):
         train_dl, test_dl = get_dataloaders(args)
         model = get_model(args)
-        # trainer = Trainer_Masked_ViT(model, args)
-        trainer = Trainer_Cutmix_ViT(model, args)
+        trainer = Trainer_Masked_ViT(model, args)
+        # trainer = Trainer_Cutmix_ViT(model, args)
         trainer.fit(train_dl, test_dl)
         wandb.alert(
             title=f"{experiment_name}",
