@@ -145,3 +145,4 @@ src/vww_setup.ipynb
 *.ipynb
 *.json
 *.pkl
+plot_stuff.py
