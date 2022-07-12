@@ -81,7 +81,7 @@ torch.random.manual_seed(args.seed)
 if args.qk_scale == 'None':
     args.qk_scale = None
 
-experiment_name = f"{args.model}_{args.dataset}_{args.optimizer}_{args.scheduler}"
+experiment_name = f"{args.exp_type}_{args.lambda_drop}"
 if args.autoaugment:
     experiment_name += "_aa"
 if args.clip_grad:
@@ -92,8 +92,6 @@ if args.cutmix_prob>0.:
     experiment_name += f'_cm'
 if args.is_cls_token:
     experiment_name += f"_cls"
-
-experiment_name += f"regularizer{args.regularizer}_{args.exp_type}"
 
 
 if __name__=='__main__':
