@@ -457,8 +457,9 @@ class DynVit(VisionTransformer):
         self.num_patches = int((img_size[0] * img_size[0])/(patch_size * patch_size))
         # self.pooling_op = nn.AvgPool1d(self.embed_dim)
 
+        self.pooling_op = nn.AvgPool1d(self.embed_dim)
         self.pdp_mod = nn.Sequential(
-                nn.Linear(self.embed_dim, self.embed_dim)
+                nn.Linear(self.num_patches, self.num_patches)
         )
     
     def forward(self, x):
@@ -476,19 +477,52 @@ class DynVit(VisionTransformer):
     
     # gets called after prepare tokens and positional info is added
     def patchdrop(self, x):
-        x_ncls = x[:,1:,:] + 1e-8 # extract all tokens exlcuding cls token, need to add 1e-8 to make sure pos emb is not zero
-        top_k_patches = self.patchdrop_module(x_ncls)
-        return top_k_patches
-
-    def patchdrop_module(self, x):
         B, N, C = x.shape
         lambda_drop = self.get_lambda()
-        new_N = int(N * lambda_drop)
-        x_prune = self.pdp_mod(x)        
-        new_input, _ = torch.topk(x_prune, new_N, dim=1)
+        new_N = int((N-1) * (1 - lambda_drop))
+        end_params = B*new_N*C
+
+        x_ncls = x[:,1:,:] + 1e-8 # extract all tokens exlcuding cls token, need to add 1e-8 to make sure pos emb is not zero
+        bin_mask = self.patchdrop_module(x_ncls, new_N)
+
+        masked_x = x_ncls * bin_mask
+        masked_x = masked_x[masked_x != 0]
+
+        # need to deal with the case where drop didnt work
+
+        if masked_x.shape[0] == end_params:
+            new_input = masked_x.reshape(B, new_N, C)
+        elif masked_x.shape[0] < end_params: # too many patches were dropped
+            padded_value = torch.zeros(end_params - masked_x.shape[0]).unsqueeze(0).to(self.device)
+            new_input = torch.cat([masked_x, padded_value]).reshape(B, new_N, C)
+        else: # too many patches were retained
+            new_input = masked_x[:end_params].reshape(B, new_N, C)
+
+        # print(new_input.shape)
         assert new_input.shape == (B, new_N, C)
+
         new_input = torch.cat([x[:,0,:].unsqueeze(1), new_input], dim=1)
         return new_input
+
+    def patchdrop_module(self, x, new_N):
+        lambda_drop = self.get_lambda()
+        x_pool = self.pooling_op(x).squeeze(-1)
+        saliency = self.pdp_mod(x_pool)
+        val, indices = torch.sort(saliency, dim=1)
+        threshold = torch.quantile(val.float(), lambda_drop, dim=1)
+        th_attn = val >= threshold[:,None]
+        idx2 = torch.argsort(indices, dim=1)
+
+        total_N = th_attn.shape[1]
+        ascend_N = total_N - new_N
+        th_attn[:,:ascend_N] = False
+        th_attn[:,ascend_N:] = True
+
+        for batch_idx in range(th_attn.shape[0]):
+            th_attn[batch_idx] = th_attn[batch_idx][idx2[batch_idx]]
+        th_attn = th_attn.unsqueeze(-1)
+        new_input = th_attn.repeat(1,1,self.embed_dim)
+        return new_input.float()
 
     def set_patchdrop_test(self, use_idx_test):
         self.patchdroptest = use_idx_test
