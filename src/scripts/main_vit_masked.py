@@ -80,7 +80,7 @@ torch.random.manual_seed(args.seed)
 if args.qk_scale == 'None':
     args.qk_scale = None
 
-experiment_name = f"{args.model}_{args.dataset}_{args.optimizer}_{args.scheduler}"
+experiment_name = f"{args.model}_{args.dataset}_{args.optimizer}_{args.scheduler}_{args.hidden_size}_{args.num_heads}"
 if args.autoaugment:
     experiment_name += "_aa"
 if args.clip_grad:
